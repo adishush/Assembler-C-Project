@@ -1,0 +1,34 @@
+# Compiled executables
+*.exe
+*.out
+
+# Object files
+*.o
+
+# Generated assembly files (intermediate)
+*.am
+
+# Output files (can be regenerated)
+*.ob
+*.ent
+*.ext
+
+# Pre-assembly related files (not part of main project)
+pre_assembly.c
+pre_assembly.h
+test_pp.c
+pp_test.exe
+
+# IDE/Editor files
+.vscode/
+*.swp
+*.swo
+*~
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+temp/
+tmp/
