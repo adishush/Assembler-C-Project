@@ -1,8 +1,5 @@
-/* Header guard - prevents multiple inclusions (technical requirement) */
-#ifndef ASSEMBLY_H
-#define ASSEMBLY_H
-
-#include "assembler.h"
+/* Assembly/macro processing functions */
+/* Simple header - no includes needed */
 
 /* Macro definition structure */
 typedef struct macro_def {
@@ -21,5 +18,3 @@ error_code_t expand_macro(FILE *output, const char *macro_name);
 int is_macro_definition_start(const char *line);
 int is_macro_definition_end(const char *line);
 char *extract_macro_name(const char *line);
-
-#endif /* ASSEMBLY_H */

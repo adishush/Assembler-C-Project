@@ -1,8 +1,5 @@
-/* Header guard - prevents multiple inclusions (technical requirement) */
-#ifndef FIRST_PASS_H
-#define FIRST_PASS_H
-
-#include "assembler.h"
+/* First pass functions and symbol table */
+/* Demonstrates that not all headers need forward declarations */
 
 /* Symbol table entry */
 typedef struct symbol {
@@ -37,5 +34,3 @@ void print_symbol_table(void);
 
 /* Global symbol table */
 extern symbol_t *symbol_table;
-
-#endif /* FIRST_PASS_H */

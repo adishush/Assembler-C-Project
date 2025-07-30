@@ -25,7 +25,6 @@
  * where everything should go in memory.
  */
 
-#include "assembler.h"  /* Must include this first for basic types */
 #include "first_pass.h"
 #include "utils.h"
 
@@ -42,34 +41,30 @@ error_code_t first_pass(const char *filename) {
     error_code_t result = SUCCESS;
     symbol_t *current;  /* ADD THIS LINE - missing variable declaration */
     
-    /*
-     * FIRST PASS - Symbol Table Building
-     * 
-     * The first pass reads through the entire assembly file and:
-     * 1. Finds all labels and their memory addresses
-     * 2. Builds a symbol table for second pass to use
-     * 3. Calculates how much memory each instruction needs
-     * 
-     * This is the classic "two-pass assembler" design used in most
-     * real assemblers and compilers.
-     */
+    printf("DEBUG: first_pass() called with filename: %s\n", filename);
+    
     file = fopen(filename, "r");
     if (!file) {
+        printf("DEBUG: Could not open file: %s\n", filename);
         print_error(filename, 0, "Could not open file");
         return ERROR_FILE_NOT_FOUND;
     }
     
-    /* Process each line of the assembly source file */
+    printf("DEBUG: Successfully opened file for first pass\n");
+    
+    /* Process each line of the file */
     while (fgets(line, sizeof(line), file)) {
         line_number++;
+        printf("DEBUG: Processing line %d: %s", line_number, line);
         
-        /* Remove newline character from end of line */
+        /* Remove newline character */
         line[strcspn(line, "\n")] = 0;
         
         result = process_line_first_pass(line, line_number);
         if (result != SUCCESS) {
+            printf("DEBUG: Error processing line %d\n", line_number);
             print_error(filename, line_number, "Error in first pass");
-            /* Continue processing to find all errors, don't stop at first error */
+            /* Don't return immediately - continue processing to find all errors */
         }
     }
     
@@ -93,11 +88,6 @@ error_code_t first_pass(const char *filename) {
         }
         current = current->next;
     }
-    
-    /*
-     * Symbol table building completed.
-     * In a production assembler, symbol table printing would be removed or made optional.
-     */
     
     return error_flag ? ERROR_INVALID_SYNTAX : SUCCESS;
 }
@@ -169,47 +159,27 @@ error_code_t process_line_first_pass(char *line, int line_number) {
  * so we can assign correct addresses to future labels.
  */
 error_code_t process_instruction_first_pass(char **parts, int part_count, const char *label) {
-    instruction_info_t *inst_info;   /* Information about this instruction */
-    int instruction_length;          /* How many memory words this instruction needs */
-    
-    /*
-     * If there's a label, add it to symbol table
-     * The label points to the current instruction address (IC)
-     * Example: "LOOP: mov r1, r2" - LOOP points to address where mov instruction is stored
-     */
+    instruction_info_t *inst_info;
+    int instruction_length;
+
     if (label && strlen(label) > 0) {
-        if (add_symbol(label, IC, 0, 0) != SUCCESS) {  /* not external, not data */
+        if (add_symbol(label, IC, 0, 0) != SUCCESS) {
             return ERROR_DUPLICATE_LABEL;
         }
     }
-    
-    /*
-     * Look up instruction in the instruction table.
-     * This validates that it's a real instruction and gets its properties.
-     */
+
     inst_info = get_instruction_info(parts[0]);
     if (!inst_info) {
         return ERROR_INVALID_INSTRUCTION;
     }
-    
-    /*
-     * Calculate instruction length
-     * This is CRITICAL - we need to know how much memory each instruction uses
-     * so we can assign correct addresses to labels that come later
-     * 
-     * Example: "mov #5, r1" takes 3 words:
-     * - Word 1: The mov instruction itself
-     * - Word 2: The immediate value 5  
-     * - Word 3: Register information
-     */
+
     instruction_length = get_instruction_length(parts[0], &parts[1], part_count - 1);
     if (instruction_length < 0) {
         return ERROR_INVALID_OPERAND;
     }
-    
-    /* Advance instruction counter by the instruction length */
+
     IC += instruction_length;
-    
+
     return SUCCESS;
 }
 
@@ -229,44 +199,25 @@ error_code_t process_directive_first_pass(char **parts, int part_count, const ch
     error_code_t result = SUCCESS;
     int i;
 
-    if (part_count == 0) {
-        return ERROR_INVALID_SYNTAX;
-    }
-
     if (strcmp(parts[0], ".data") == 0) {
         if (label && strlen(label) > 0) {
-            add_symbol(label, DC, 0, 1); /* not external, IS data */
+            add_symbol(label, DC, 0, 1);
         }
         for (i = 1; i < part_count; i++) {
             DC++;
         }
     } else if (strcmp(parts[0], ".string") == 0) {
         if (label && strlen(label) > 0) {
-            add_symbol(label, DC, 0, 1); /* not external, IS data */
+            add_symbol(label, DC, 0, 1);
         }
         if (part_count > 1) {
             DC += strlen(parts[1]) - 1;
         }
     } else if (strcmp(parts[0], ".entry") == 0) {
-        /* Entry processing happens in second pass */
+        /* No action needed in first pass */
     } else if (strcmp(parts[0], ".extern") == 0) {
-        /*
-         * EXTERNAL SYMBOLS
-         * These are labels defined in other assembly files.
-         * We add them to our symbol table so second pass can reference them.
-         */
         if (part_count > 1) {
-            add_symbol(parts[1], 0, 1, 0); /* IS external, not data */
-        }
-    } else if (strcmp(parts[0], ".mat") == 0) {
-        /* .mat directive: declare a matrix */
-        if (label && strlen(label) > 0) {
-            add_symbol(label, DC, 0, 1); /* not external, IS data */
-        }
-        /* For .mat [rows][cols] values... we need to count the values */
-        /* Skip the dimension specifiers and count actual values */
-        if (part_count > 3) {  /* .mat [2][2] 1,2,3,4 -> skip .mat [2] [2] */
-            DC += part_count - 3;  /* Count data values after dimensions */
+            add_symbol(parts[1], 0, 1, 0);
         }
     } else {
         result = ERROR_INVALID_DIRECTIVE;
@@ -402,8 +353,7 @@ int is_directive(const char *word) {
     return (strcmp(word, ".data") == 0 ||
             strcmp(word, ".string") == 0 ||
             strcmp(word, ".entry") == 0 ||
-            strcmp(word, ".extern") == 0 ||
-            strcmp(word, ".mat") == 0);
+            strcmp(word, ".extern") == 0);
 }
 
 /*

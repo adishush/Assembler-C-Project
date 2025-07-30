@@ -26,7 +26,6 @@
  *         mov r2, TEMP2
  */
 
-#include "assembler.h"  /* Must include this first for basic types */
 #include "assembly.h"
 #include "utils.h"
 
@@ -65,68 +64,58 @@ error_code_t process_macros(const char *input_filename, const char *output_filen
     memset(macro_content, 0, sizeof(macro_content));  /* Initialize array to NULL */
     
     /* Open files */
-    /* Open input file for reading */
     input = fopen(input_filename, "r");
     if (!input) {
+        printf("DEBUG: Could not open input file: %s\n", input_filename);
         return ERROR_FILE_NOT_FOUND;
     }
     
-    /* Create output file for writing expanded macros */
     output = fopen(output_filename, "w");
     if (!output) {
+        printf("DEBUG: Could not create output file: %s\n", output_filename);
         fclose(input);
         return ERROR_FILE_NOT_FOUND;
     }
     
-    /*
-     * MAIN MACRO PROCESSING LOOP
-     * 
-     * We read through the input file line by line, looking for:
-     * 1. Macro definitions (mcro NAME ... mcroend)
-     * 2. Macro calls (NAME)
-     * 3. Regular assembly code (copy as-is)
-     * 
-     * This is a two-state machine:
-     * - State 0: Normal processing (copy lines, detect macro calls)
-     * - State 1: Inside macro definition (collect lines for later use)
-     */
+    printf("DEBUG: Processing macros from %s to %s\n", input_filename, output_filename);
+    
     while (fgets(line, sizeof(line), input)) {
-        /* Clean up the line */
+        /* Remove newline */
         line[strcspn(line, "\n")] = 0;
+        
+        printf("DEBUG: Processing line: '%s'\n", line);
+        
         trimmed = trim_whitespace(line);
         
-        /* Copy comments and empty lines without processing */
+        /* Skip empty lines and comments */
         if (is_empty_line(trimmed) || (trimmed[0] == ';')) {
-            fprintf(output, "%s\n", line);
+            fprintf(output, "%s\n", line);  /* Copy comments and empty lines as-is */
             continue;
         }
         
-        /*
-         * MACRO DEFINITION START: "mcro macro_name"
-         * Switch to macro collection mode.
-         */
-        if (strncmp(trimmed, "mcro ", 5) == 0) {
+        /* Check for macro definition start */
+        if (strncmp(trimmed, "macr ", 5) == 0) {
+            printf("DEBUG: Found macro definition start\n");
             in_macro = 1;
             macro_line_count = 0;
-            /* Extract macro name (everything after "mcro ") */
-            strcpy(macro_name, trimmed + 5);
+            strcpy(macro_name, trimmed + 5);  /* Skip "macr " */
+            /* Trim the macro name */
             trimmed = trim_whitespace(macro_name);
             strcpy(macro_name, trimmed);
-            continue;  /* Don't write macro definition line to output */
+            printf("DEBUG: Macro name: '%s'\n", macro_name);
+            continue;  /* Don't write macro definition to output */
         }
         
-        /*
-         * MACRO DEFINITION END: "mcroend"  
-         * Save the collected macro lines and switch back to normal mode.
-         */
-        if (strcmp(trimmed, "mcroend") == 0) {
+        /* Check for macro definition end */
+        if (strcmp(trimmed, "endmacr") == 0) {
+            printf("DEBUG: Found macro definition end\n");
             if (in_macro) {
-                /* Save the macro we just collected */
+                /* Save the macro */
                 if (macro_line_count > 0) {
-                    /* Create a permanent copy of the macro content */
+                    /* Copy the content array for the macro */
                     char **content_copy = malloc(macro_line_count * sizeof(char*));
                     if (!content_copy) {
-                        /* Cleanup on memory allocation failure */
+                        /* Cleanup on failure */
                         for (i = 0; i < macro_line_count; i++) {
                             free(macro_content[i]);
                         }
@@ -135,26 +124,23 @@ error_code_t process_macros(const char *input_filename, const char *output_filen
                         return ERROR_MEMORY_ALLOCATION;
                     }
                     
-                    /* Copy all the macro lines */
                     for (i = 0; i < macro_line_count; i++) {
                         content_copy[i] = macro_content[i];
                     }
                     
-                    /* Register the macro in our global macro table */
                     add_macro(macro_name, content_copy, macro_line_count);
+                    printf("DEBUG: Added macro '%s' with %d lines\n", macro_name, macro_line_count);
                 }
                 in_macro = 0;
                 macro_line_count = 0;
             }
-            continue;  /* Don't write "mcroend" to output */
+            continue;  /* Don't write endmacr to output */
         }
         
-        /*
-         * COLLECT MACRO CONTENT
-         * If we're inside a macro definition, collect this line for later use.
-         */
         if (in_macro) {
-            /* Store this line for the macro */
+            /* We're inside a macro definition - collect the line */
+            printf("DEBUG: Adding line to macro: '%s'\n", line);
+            
             if (macro_line_count >= MAX_MACRO_LINES) {
                 printf("Error: Macro too long (maximum %d lines)\n", MAX_MACRO_LINES);
                 /* Cleanup */
@@ -166,10 +152,9 @@ error_code_t process_macros(const char *input_filename, const char *output_filen
                 return ERROR_LINE_TOO_LONG;
             }
             
-            /* Allocate memory for this macro line */
             macro_content[macro_line_count] = malloc(strlen(line) + 1);
             if (!macro_content[macro_line_count]) {
-                /* Cleanup on memory allocation failure */
+                /* Cleanup on failure */
                 for (i = 0; i < macro_line_count; i++) {
                     free(macro_content[i]);
                 }
@@ -179,25 +164,21 @@ error_code_t process_macros(const char *input_filename, const char *output_filen
             }
             strcpy(macro_content[macro_line_count], line);
             macro_line_count++;
-            
         } else {
-            /*
-             * NORMAL LINE PROCESSING
-             * Check if this line is a macro call. If so, expand it.
-             * Otherwise, copy the line to output unchanged.
-             */
+            /* Normal line processing: check if it's a macro call */
             macro = find_macro(trimmed);
             if (macro) {
-                /* This line is a macro call - replace it with macro content! */
+                /* This line is a macro call - expand it! */
+                printf("DEBUG: Expanding macro '%s'\n", trimmed);
                 expand_macro(output, macro->name);
             } else {
-                /* Regular assembly line - copy as-is */
+                /* Regular line - copy to output unchanged */
                 fprintf(output, "%s\n", line);
             }
         }
     }
     
-    /* Cleanup any remaining macro content if file ended inside macro definition */
+    /* Cleanup any remaining macro content if we ended while in a macro */
     if (in_macro) {
         printf("Warning: File ended while inside macro definition\n");
         for (i = 0; i < macro_line_count; i++) {
@@ -208,7 +189,7 @@ error_code_t process_macros(const char *input_filename, const char *output_filen
     fclose(input);
     fclose(output);
     
-    /* Macro processing completed successfully */
+    printf("DEBUG: Macro processing completed. Created %s\n", output_filename);
     return SUCCESS;
 }
 

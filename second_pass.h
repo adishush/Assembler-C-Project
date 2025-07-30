@@ -1,9 +1,7 @@
-/* Header guard - prevents multiple inclusions (technical requirement) */
-#ifndef SECOND_PASS_H
-#define SECOND_PASS_H
+/* Second pass functions and encoding */
+/* Includes stdio.h because we use FILE* in function declarations */
 
-#include "assembly.h"
-#include "first_pass.h"
+#include <stdio.h>
 
 /* External reference entry */
 typedef struct external_ref {
@@ -35,5 +33,3 @@ error_code_t encode_word(int address, unsigned int value, int are);
 extern word_t instruction_memory[MEMORY_SIZE];
 extern word_t data_memory[MEMORY_SIZE];
 extern external_ref_t *external_references;
-
-#endif /* SECOND_PASS_H */

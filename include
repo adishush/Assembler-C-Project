@@ -1,5 +1,5 @@
-/* Main header with all basic types and constants */
-/* No need for include guards when headers don't include each other */
+#ifndef ASSEMBLER_H
+#define ASSEMBLER_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,8 +49,8 @@ typedef enum {
 
 /* Memory word structure */
 typedef struct {
-    unsigned int value : 10;  /* 10-bit value */
-    unsigned int are : 2;     /* 2-bit A.R.E field */
+    unsigned int value : 12;  /* 12-bit value */
+    unsigned int ARE : 3;     /* 3-bit ARE field */
 } word_t;
 
 /* Instruction information structure */
@@ -86,3 +86,5 @@ extern char *current_filename;
 /* Function declarations */
 error_code_t process_assembly_file(const char *filename);
 void reset_global_state(void);
+
+#endif /* ASSEMBLER_H */

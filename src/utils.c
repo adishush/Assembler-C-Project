@@ -12,7 +12,6 @@
  * - Error reporting
  */
 
-#include "assembler.h"  /* Must include this first for basic types */
 #include "utils.h"
 
 /* 
@@ -32,10 +31,10 @@
  */
 instruction_info_t instruction_table[] = {
     /* name   opcode   count  source_types     dest_types */
-    {"mov", MOV_OP, 2, {1,1,1,1}, {0,1,1,1}},  /* mov allows all src, can't have immediate dest */
+    {"mov", MOV_OP, 2, {0,1,1,1}, {0,1,1,1}},  /* mov can't have immediate dest */
     {"cmp", CMP_OP, 2, {1,1,1,1}, {1,1,1,1}},  /* cmp allows all types */
-    {"add", ADD_OP, 2, {1,1,1,1}, {0,1,1,1}},  /* add allows all src, can't have immediate dest */
-    {"sub", SUB_OP, 2, {1,1,1,1}, {0,1,1,1}},  /* sub allows all src, can't have immediate dest */
+    {"add", ADD_OP, 2, {0,1,1,1}, {0,1,1,1}},  /* add can't have immediate dest */
+    {"sub", SUB_OP, 2, {0,1,1,1}, {0,1,1,1}},  /* sub can't have immediate dest */
     {"not", NOT_OP, 1, {0,0,0,0}, {0,1,1,1}},  /* not: one operand, no immediate dest */
     {"clr", CLR_OP, 1, {0,0,0,0}, {0,1,1,1}},  /* clr: one operand, no immediate dest */
     {"lea", LEA_OP, 2, {0,1,0,0}, {0,1,1,1}},  /* lea: source must be direct only */
@@ -48,7 +47,6 @@ instruction_info_t instruction_table[] = {
     {"jsr", JSR_OP, 1, {0,0,0,0}, {0,1,0,1}},  /* jsr: direct or register only */
     {"rts", RTS_OP, 0, {0,0,0,0}, {0,0,0,0}},  /* rts: no operands */
     {"hlt", HLT_OP, 0, {0,0,0,0}, {0,0,0,0}},  /* hlt: no operands */
-    {"stop", HLT_OP, 0, {0,0,0,0}, {0,0,0,0}}, /* stop: alias for hlt - no operands */
     {"", -1, 0, {0,0,0,0}, {0,0,0,0}}           /* End marker - signals end of table */
 };
 
@@ -73,10 +71,6 @@ operand_type_t get_operand_type(const char *operand) {
     } else if (operand[0] == 'r' && isdigit(operand[1]) && operand[2] == '\0') {
         return REGISTER;     /* r1, r2, etc. */
     } else {
-        /* Check for matrix indexing syntax: MATRIX[index1][index2] */
-        if (strchr(operand, '[') && strchr(operand, ']')) {
-            return INDIRECT;   /* Matrix indexing with registers is indirect addressing */
-        }
         return DIRECT;       /* LABEL */
     }
 }
@@ -95,43 +89,6 @@ int get_register_number(const char *operand) {
     
     reg_num = operand[1] - '0';  /* Convert character to number */
     return (reg_num >= 0 && reg_num <= 7) ? reg_num : -1;
-}
-
-/*
- * PARSE_MATRIX_OPERAND - Parse matrix indexing operand
- * 
- * Takes operand like "M1[r2][r7]" and extracts:
- * - base_name: "M1" 
- * - Returns: pointer to base name (static buffer)
- * 
- * For matrix indexing, we treat it as direct addressing to the base symbol.
- * The actual index calculation would be done at runtime.
- */
-char *parse_matrix_operand(const char *operand) {
-    static char base_name[MAX_LABEL_LENGTH];
-    char *bracket_pos;
-    int base_len;
-    
-    if (!operand) return NULL;
-    
-    /* Find first bracket */
-    bracket_pos = strchr(operand, '[');
-    if (!bracket_pos) {
-        /* No brackets - just return the operand as-is */
-        strcpy(base_name, operand);
-        return base_name;
-    }
-    
-    /* Extract base name before first bracket */
-    base_len = bracket_pos - operand;
-    if (base_len >= MAX_LABEL_LENGTH) {
-        return NULL; /* Base name too long */
-    }
-    
-    strncpy(base_name, operand, base_len);
-    base_name[base_len] = '\0';
-    
-    return base_name;
 }
 
 /*
@@ -501,65 +458,51 @@ opcode_t get_opcode(const char *instruction) {
  * - "mov LABEL, r1" = 3 words (1 base + 1 address + 1 register)
  */
 int get_instruction_length(const char *instruction, char **operands, int operand_count) {
-    int length = 1; /* Base instruction word */
-    instruction_info_t *info = get_instruction_info(instruction);
+    instruction_info_t *info;
+    int length;
+    int i;  /* C90: Declare loop variable at beginning */
+    operand_type_t type;
+    
+    /* Look up instruction information */
+    info = get_instruction_info(instruction);
     if (!info) {
         return -1;  /* Unknown instruction */
     }
     
+    /* Verify operand count matches what instruction expects */
     if (operand_count != info->operand_count) {
         return -1;  /* Wrong number of operands */
     }
-    if (operand_count == 0) {
-        return length;
-    }
-
-    if (operand_count == 1) {
-        operand_type_t type = get_operand_type(operands[0]);
-        if (type == (operand_type_t)-1 || !info->valid_dest_types[type]) {
-            return -1;
-        }
-    }
-
-    /*
-     * VALIDATE TWO-OPERAND INSTRUCTIONS
-     * Check that both operands are valid for this instruction type.
-     * For example, "mov" accepts most operand types, but "lea" might be more restrictive.
-     */
-    if (operand_count == 2) {
-        operand_type_t src_type = get_operand_type(operands[0]);
-        operand_type_t dest_type = get_operand_type(operands[1]);
+    
+    length = 1; /* Start with base instruction word */
+    
+    /* Check each operand and add to length */
+    for (i = 0; i < operand_count; i++) {  /* FIXED: Use pre-declared variable */
+        type = get_operand_type(operands[i]);  /* NOW WORKS: function is defined above */
         
-        /* Basic operand type validation */
-        if (src_type == (operand_type_t)-1 || dest_type == (operand_type_t)-1) {
-            return -1;  /* Invalid operand type */
-        }
-        
-        /* Check if source operand type is allowed for this instruction */
-        if (!info->valid_src_types[src_type]) {
-            return -1;  /* Invalid source type */
-        }
-        
-        /* Check if destination operand type is allowed for this instruction */
-        if (!info->valid_dest_types[dest_type]) {
-            return -1;  /* Invalid destination type */
-        }
-    }
-
-    if (operand_count == 2 && get_operand_type(operands[0]) == REGISTER && get_operand_type(operands[1]) == REGISTER) {
-        /* Two registers can be packed into one additional word */
-        length += 1; /* One additional word for both registers */
-    } else {
-        /* Each operand gets its own word */
-        /* Matrix addressing (INDIRECT) requires an additional word for index registers */
-        int i; /* C90: Declare variables at beginning of block */
-        
-        length += operand_count;
-        
-        for (i = 0; i < operand_count; i++) {
-            if (get_operand_type(operands[i]) == INDIRECT) {
-                length += 1; /* Additional word for matrix index registers */
+        /* Validate that this operand type is allowed in this position */
+        if (i == 0) { /* Source operand (first operand) */
+            if (!info->valid_src_types[type]) {
+                return -1;  /* Invalid source operand type */
             }
+        } else { /* Destination operand (second operand) */
+            if (!info->valid_dest_types[type]) {
+                return -1;  /* Invalid destination operand type */
+            }
+        }
+        
+        /* 
+         * SPECIAL OPTIMIZATION: Two registers can share one word
+         * If we have 2 operands and both are registers, they share one word
+         * Otherwise, each operand gets its own word
+         */
+        if (operand_count == 2 && i == 0 && type == REGISTER && 
+            get_operand_type(operands[1]) == REGISTER) {
+            /* This is the first of two registers - they'll share one word */
+            /* Don't increment length here, the shared word will be counted once */
+        } else if (type != REGISTER || operand_count == 1) {
+            /* This operand needs its own word */
+            length++;
         }
     }
     

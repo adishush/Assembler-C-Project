@@ -24,6 +24,8 @@
  * Addresses 151-200: Data (.data and .string values)
  */
 
+#include "assembler.h"  /* Must include this first for basic types */
+#include "first_pass.h" /* Need symbol_t and symbol table functions */
 #include "second_pass.h"
 #include "utils.h"
 
@@ -531,7 +533,7 @@ error_code_t encode_directive(char *line) {
                      */
                     int value = string_to_int(token);
                     data_memory[DC].value = value;
-                    data_memory[DC].ARE = ARE_ABSOLUTE;
+                    data_memory[DC].are = ARE_ABSOLUTE;
                     DC++;  /* Move to next data memory location */
                 }
                 token = strtok(NULL, ",");
@@ -565,13 +567,13 @@ error_code_t encode_directive(char *line) {
                 /* Store each character in data memory */
                 for (i = start_offset; i < len - end_offset; i++) {
                     data_memory[DC].value = str[i];      /* ASCII value of character */
-                    data_memory[DC].ARE = ARE_ABSOLUTE;  /* Direct memory addressing */
+                    data_memory[DC].are = ARE_ABSOLUTE;  /* Direct memory addressing */
                     DC++;
                 }
                 
                 /* Add null terminator (this is how C knows where string ends) */
                 data_memory[DC].value = 0; 
-                data_memory[DC].ARE = ARE_ABSOLUTE;
+                data_memory[DC].are = ARE_ABSOLUTE;
                 DC++;
             }
         }
@@ -607,7 +609,7 @@ error_code_t encode_directive(char *line) {
                      */
                     int value = string_to_int(token);
                     data_memory[DC].value = value;
-                    data_memory[DC].ARE = ARE_ABSOLUTE;
+                    data_memory[DC].are = ARE_ABSOLUTE;
                     DC++;
                 }
                 token = strtok(NULL, ",");
@@ -667,7 +669,7 @@ error_code_t encode_word(int address, unsigned int value, int are) {
     
     /* Store in instruction memory array (offset by INITIAL_IC) */
     instruction_memory[address - INITIAL_IC].value = value;
-    instruction_memory[address - INITIAL_IC].ARE = are;
+    instruction_memory[address - INITIAL_IC].are = are;
     
     return SUCCESS;
 }

@@ -1,8 +1,5 @@
-/* Header guard - prevents multiple inclusions (technical requirement) */
-#ifndef UTILS_H
-#define UTILS_H
-
-#include "assembler.h"  /* Include assembly.h first to get all type definitions */
+/* Utility functions */  
+/* Simple header - demonstrates that not all headers need includes */
 
 /* Function declarations */
 char *trim_whitespace(char *str);
@@ -22,5 +19,3 @@ int get_instruction_length(const char *instruction, char **operands, int operand
 operand_type_t get_operand_type(const char *operand);
 int get_register_number(const char *operand);
 char *parse_matrix_operand(const char *operand);
-
-#endif /* UTILS_H */
