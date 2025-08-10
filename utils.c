@@ -428,7 +428,7 @@ instruction_info_t *get_instruction_info(const char *name) {
     int i;  /* C90: Declare loop variable at beginning */
     
     /* Linear search through instruction table */
-    for (i = 0; instruction_table[i].opcode != -1; i++) {  /* FIXED: Use pre-declared variable */
+    for (i = 0; instruction_table[i].name[0] != '\0'; i++) {  /* Use name sentinel to end table */
         if (strcmp(instruction_table[i].name, name) == 0) {
             return &instruction_table[i];  /* Found it! */
         }
@@ -481,7 +481,7 @@ int is_reserved_word(const char *word) {
  */
 opcode_t get_opcode(const char *instruction) {
     instruction_info_t *info = get_instruction_info(instruction);
-    return info ? info->opcode : -1;
+    return info ? info->opcode : (opcode_t)-1;
 }
 
 /*

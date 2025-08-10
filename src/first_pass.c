@@ -55,16 +55,15 @@ error_code_t first_pass(const char *filename) {
     /* Process each line of the file */
     while (fgets(line, sizeof(line), file)) {
         line_number++;
-        printf("DEBUG: Processing line %d: %s", line_number, line);
         
-        /* Remove newline character */
+        /* Remove newline character from end of line */
         line[strcspn(line, "\n")] = 0;
         
         result = process_line_first_pass(line, line_number);
         if (result != SUCCESS) {
-            printf("DEBUG: Error processing line %d\n", line_number);
             print_error(filename, line_number, "Error in first pass");
-            /* Don't return immediately - continue processing to find all errors */
+            error_flag = 1; /* Ensure errors in first pass block output generation */
+            /* Continue processing to find all errors, don't stop at first error */
         }
     }
     

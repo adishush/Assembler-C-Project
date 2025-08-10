@@ -69,6 +69,7 @@ error_code_t first_pass(const char *filename) {
         result = process_line_first_pass(line, line_number);
         if (result != SUCCESS) {
             print_error(filename, line_number, "Error in first pass");
+            error_flag = 1; /* Ensure errors in first pass block output generation */
             /* Continue processing to find all errors, don't stop at first error */
         }
     }
@@ -130,6 +131,13 @@ error_code_t process_line_first_pass(char *line, int line_number) {
     label = extract_label(line, &line_ptr);
 
     trimmed = trim_whitespace(line_ptr);
+    /* Strip trailing comment starting with ';' */
+    {
+        char *sc = strchr(trimmed, ';');
+        if (sc) {
+            *sc = '\0';
+        }
+    }
     words = split_line(trimmed, &word_count);
 
     if (word_count == 0) {
@@ -166,7 +174,7 @@ error_code_t process_line_first_pass(char *line, int line_number) {
  * 
  * We DON'T generate machine code yet - that's for the second pass!
  * We just need to know "this instruction will take X words of memory"
- * so we can assign correct addresses to future labels.
+ * so we can assign correct addresses to labels that come later.
  */
 error_code_t process_instruction_first_pass(char **parts, int part_count, const char *label) {
     instruction_info_t *inst_info;   /* Information about this instruction */
@@ -245,7 +253,22 @@ error_code_t process_directive_first_pass(char **parts, int part_count, const ch
             add_symbol(label, DC, 0, 1); /* not external, IS data */
         }
         if (part_count > 1) {
-            DC += strlen(parts[1]) - 1;
+            /* Account for characters and null terminator; accept both ASCII and Unicode quotes */
+            char *s = parts[1];
+            int len = strlen(s);
+            if (len >= 2) {
+                int start_offset = (s[0] == '"') ? 1 : 0;
+                int end_offset = (s[len-1] == '"') ? 1 : 0;
+                if (start_offset == 0 && end_offset == 0 && (unsigned char)s[0] >= 128 && (unsigned char)s[len-1] >= 128) {
+                    /* Fancy quotes: estimate 3-byte UTF-8 quotes */
+                    start_offset = 3;
+                    end_offset = 3;
+                }
+                if (len > start_offset + end_offset) {
+                    DC += (len - start_offset - end_offset); /* characters */
+                    DC += 1; /* null terminator */
+                }
+            }
         }
     } else if (strcmp(parts[0], ".entry") == 0) {
         /* Entry processing happens in second pass */
@@ -263,10 +286,23 @@ error_code_t process_directive_first_pass(char **parts, int part_count, const ch
         if (label && strlen(label) > 0) {
             add_symbol(label, DC, 0, 1); /* not external, IS data */
         }
-        /* For .mat [rows][cols] values... we need to count the values */
-        /* Skip the dimension specifiers and count actual values */
-        if (part_count > 3) {  /* .mat [2][2] 1,2,3,4 -> skip .mat [2] [2] */
-            DC += part_count - 3;  /* Count data values after dimensions */
+        /* Count actual numeric values after the dimension token */
+        if (part_count > 2) {  /* tokens: .mat, [rows][cols], values... */
+            int value_count = 0;
+            for (i = 2; i < part_count; i++) {
+                char *tmp = malloc(strlen(parts[i]) + 1);
+                char *tok;
+                if (!tmp) continue;
+                strcpy(tmp, parts[i]);
+                tok = strtok(tmp, ",");
+                while (tok) {
+                    while (*tok == ' ' || *tok == '\t') tok++;
+                    if (*tok != '\0') value_count++;
+                    tok = strtok(NULL, ",");
+                }
+                free(tmp);
+            }
+            DC += value_count;
         }
     } else {
         result = ERROR_INVALID_DIRECTIVE;
