@@ -102,14 +102,18 @@ error_code_t process_macros(const char *input_filename, const char *output_filen
         }
         
         /*
-         * MACRO DEFINITION START: "mcro macro_name"
+         * MACRO DEFINITION START: "mcro NAME"
          * Switch to macro collection mode.
          */
-        if (strncmp(trimmed, "mcro ", 5) == 0) {
+        if (strncmp(trimmed, "mcro ", 5) == 0 || strncmp(trimmed, "macr ", 5) == 0) {
             in_macro = 1;
             macro_line_count = 0;
-            /* Extract macro name (everything after "mcro ") */
-            strcpy(macro_name, trimmed + 5);
+            /* Extract macro name (everything after the keyword) */
+            if (strncmp(trimmed, "mcro ", 5) == 0) {
+                strcpy(macro_name, trimmed + 5);
+            } else {
+                strcpy(macro_name, trimmed + 5);
+            }
             trimmed = trim_whitespace(macro_name);
             strcpy(macro_name, trimmed);
             continue;  /* Don't write macro definition line to output */
@@ -119,7 +123,7 @@ error_code_t process_macros(const char *input_filename, const char *output_filen
          * MACRO DEFINITION END: "mcroend"  
          * Save the collected macro lines and switch back to normal mode.
          */
-        if (strcmp(trimmed, "mcroend") == 0) {
+        if (strcmp(trimmed, "mcroend") == 0 || strcmp(trimmed, "endmacr") == 0) {
             if (in_macro) {
                 /* Save the macro we just collected */
                 if (macro_line_count > 0) {
@@ -146,7 +150,7 @@ error_code_t process_macros(const char *input_filename, const char *output_filen
                 in_macro = 0;
                 macro_line_count = 0;
             }
-            continue;  /* Don't write "mcroend" to output */
+            continue;  /* Don't write end marker to output */
         }
         
         /*
@@ -186,7 +190,45 @@ error_code_t process_macros(const char *input_filename, const char *output_filen
              * Check if this line is a macro call. If so, expand it.
              * Otherwise, copy the line to output unchanged.
              */
-            macro = find_macro(trimmed);
+            macro = NULL;
+            {
+                char temp_line[MAX_LINE_LENGTH];
+                char *p;
+                char *semicolon_pos;
+                char *colon_pos;
+                char macro_candidate[MAX_LABEL_LENGTH];
+                int k = 0;
+                
+                /* Work on a modifiable copy */
+                strcpy(temp_line, trimmed);
+                
+                /* Strip trailing comment if present */
+                semicolon_pos = strchr(temp_line, ';');
+                if (semicolon_pos) {
+                    *semicolon_pos = '\0';
+                }
+                
+                /* Trim whitespace after stripping comments */
+                p = trim_whitespace(temp_line);
+                
+                /* If there's a label (e.g., "LBL: MAC"), skip it */
+                colon_pos = strchr(p, ':');
+                if (colon_pos) {
+                    p = trim_whitespace(colon_pos + 1);
+                }
+                
+                /* Extract first token as candidate macro name */
+                while (p[k] && !isspace((unsigned char)p[k]) && k < (MAX_LABEL_LENGTH - 1)) {
+                    macro_candidate[k] = p[k];
+                    k++;
+                }
+                macro_candidate[k] = '\0';
+                
+                if (macro_candidate[0] != '\0') {
+                    macro = find_macro(macro_candidate);
+                }
+            }
+            
             if (macro) {
                 /* This line is a macro call - replace it with macro content! */
                 expand_macro(output, macro->name);

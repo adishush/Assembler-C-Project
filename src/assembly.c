@@ -93,29 +93,36 @@ error_code_t process_macros(const char *input_filename, const char *output_filen
             continue;
         }
         
-        /* Check for macro definition start */
-        if (strncmp(trimmed, "macr ", 5) == 0) {
-            printf("DEBUG: Found macro definition start\n");
+        /*
+         * MACRO DEFINITION START: "mcro macro_name"
+         * Switch to macro collection mode.
+         */
+        if (strncmp(trimmed, "mcro ", 5) == 0 || strncmp(trimmed, "macr ", 5) == 0) {
             in_macro = 1;
             macro_line_count = 0;
-            strcpy(macro_name, trimmed + 5);  /* Skip "macr " */
-            /* Trim the macro name */
+            /* Extract macro name (everything after the keyword) */
+            if (strncmp(trimmed, "mcro ", 5) == 0) {
+                strcpy(macro_name, trimmed + 5);
+            } else {
+                strcpy(macro_name, trimmed + 5);
+            }
             trimmed = trim_whitespace(macro_name);
             strcpy(macro_name, trimmed);
-            printf("DEBUG: Macro name: '%s'\n", macro_name);
-            continue;  /* Don't write macro definition to output */
+            continue;  /* Don't write macro definition line to output */
         }
         
-        /* Check for macro definition end */
-        if (strcmp(trimmed, "endmacr") == 0) {
-            printf("DEBUG: Found macro definition end\n");
+        /*
+         * MACRO DEFINITION END: "mcroend"  
+         * Save the collected macro lines and switch back to normal mode.
+         */
+        if (strcmp(trimmed, "mcroend") == 0 || strcmp(trimmed, "endmacr") == 0) {
             if (in_macro) {
-                /* Save the macro */
+                /* Save the macro we just collected */
                 if (macro_line_count > 0) {
-                    /* Copy the content array for the macro */
+                    /* Create a permanent copy of the macro content */
                     char **content_copy = malloc(macro_line_count * sizeof(char*));
                     if (!content_copy) {
-                        /* Cleanup on failure */
+                        /* Cleanup on memory allocation failure */
                         for (i = 0; i < macro_line_count; i++) {
                             free(macro_content[i]);
                         }
@@ -124,17 +131,18 @@ error_code_t process_macros(const char *input_filename, const char *output_filen
                         return ERROR_MEMORY_ALLOCATION;
                     }
                     
+                    /* Copy all the macro lines */
                     for (i = 0; i < macro_line_count; i++) {
                         content_copy[i] = macro_content[i];
                     }
                     
+                    /* Register the macro in our global macro table */
                     add_macro(macro_name, content_copy, macro_line_count);
-                    printf("DEBUG: Added macro '%s' with %d lines\n", macro_name, macro_line_count);
                 }
                 in_macro = 0;
                 macro_line_count = 0;
             }
-            continue;  /* Don't write endmacr to output */
+            continue;  /* Don't write end marker to output */
         }
         
         if (in_macro) {

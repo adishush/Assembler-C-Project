@@ -83,6 +83,7 @@ error_code_t second_pass(const char *filename) {
  * We skip the label extraction since labels are already in our symbol table.
  */
 error_code_t process_line_second_pass(char *line, int line_number) {
+    (void)line_number; /* Unused in current implementation */
     char *line_ptr;
     char *trimmed;
     char *line_copy = NULL;
@@ -134,7 +135,7 @@ error_code_t process_line_second_pass(char *line, int line_number) {
      * DETERMINE LINE TYPE AND ENCODE APPROPRIATELY
      * 
      * Instructions: Convert to machine code (mov, add, jmp, etc.)
-     * Directives: Process data storage (.data, .string, .entry, etc.)
+     * Directives: Process data storage (.data, .string, etc.)
      * 
      * At this point we know exactly what each line contains and can
      * generate the appropriate machine code or data values.

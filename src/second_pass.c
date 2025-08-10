@@ -81,7 +81,10 @@ error_code_t second_pass(const char *filename) {
  * We skip the label extraction since labels are already in our symbol table.
  */
 error_code_t process_line_second_pass(char *line, int line_number) {
+    (void)line_number; /* Unused in current implementation */
+    char *line_ptr;
     char *trimmed;
+    char *line_copy = NULL;
     int word_count;
     char **words;
     error_code_t result = SUCCESS;
